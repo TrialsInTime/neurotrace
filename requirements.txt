@@ -1,0 +1,12 @@
+numpy
+scipy
+pandas
+scikit-learn
+matplotlib
+seaborn
+mne
+mne-connectivity
+torch
+shap
+gradio
+pyyaml
