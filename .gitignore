@@ -218,3 +218,18 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+
+# EEG data and large artifacts
+data/
+*.set
+*.fdt
+*.fif
+*.edf
+*.npy
+*.npz
+*.pt
+*.pth
+
+# Colab / notebooks
+.ipynb_checkpoints/
