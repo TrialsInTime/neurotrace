@@ -1,0 +1,5 @@
+accuracy,macro_f1,recall_AD,recall_CN,task,model,recall_FTD
+0.794,0.792,0.794,0.793,AD-CN,LogReg,
+0.822,0.82,0.808,0.838,AD-CN,RandomForest,
+0.565,0.538,0.581,0.766,AD-FTD-CN,LogReg,0.287
+0.644,0.588,0.775,0.821,AD-FTD-CN,RandomForest,0.217
