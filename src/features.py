@@ -48,4 +48,22 @@ def build_feature_table(derivative=True):
         table.insert(0, "subject", sid)                                   # who it came from
         table.insert(1, "label", label)                                   # AD, CN or FTD
         tables.append(table)
-    return pd.concat(tables, ignore_index=True)                           # stack all subjects
+    return pd.concat(tables, ignore_index=True)      
+
+
+REGIONS = {
+    "frontal":   ["Fp1", "Fp2", "F3", "F4", "F7", "F8", "Fz"],
+    "central":   ["C3", "C4", "Cz"],
+    "temporal":  ["T3", "T4", "T5", "T6"],
+    "parietal":  ["P3", "P4", "Pz"],
+    "occipital": ["O1", "O2"],
+}
+
+def regional_table(features):
+    out = features[["subject", "label"]].copy()
+    for region, channels in REGIONS.items():
+        for band in BANDS:
+            columns = [f"{ch}_{band}" for ch in channels]
+            out[f"{region}_{band}"] = features[columns].mean(axis=1)      # average over the region's channels
+        out[f"{region}_theta/alpha"] = out[f"{region}_theta"] / out[f"{region}_alpha"]
+    return out                     # stack all subjects
