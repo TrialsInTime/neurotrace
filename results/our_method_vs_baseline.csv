@@ -1,0 +1,9 @@
+task,method,accuracy,macro_f1,recall_AD,recall_FTD,recall_CN
+AD-FTD-CN,Baseline RF,0.644,0.588,0.775,0.217,0.821
+AD-FTD-CN,Our method,0.624,0.604,0.619,0.409,0.8
+AD-FTD,Baseline RF,0.634,0.519,0.919,0.187,
+AD-FTD,Our method,0.585,0.566,0.647,0.487,
+FTD-CN,Baseline RF,0.773,0.764,,0.652,0.869
+FTD-CN,Our method,0.79,0.785,,0.726,0.841
+AD-CN,Baseline RF,0.822,0.82,0.808,,0.838
+AD-CN,Our method,0.785,0.783,0.772,,0.8

@@ -1,0 +1,5 @@
+model,accuracy,size_kb,predict_ms_per_epoch,features_ms_per_epoch,total_ms_per_epoch
+LogReg,0.794,4.2,0.286,0.828,1.1139999999999999
+RandomForest,0.822,58597.7,13.969,0.828,14.796999999999999
+RandomForest (small),0.8,1544.9,2.487,0.828,3.315
+CNN,0.677,54.3,0.207,0.789,0.996

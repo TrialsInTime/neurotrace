@@ -233,3 +233,6 @@ data/
 
 # Colab / notebooks
 .ipynb_checkpoints/
+
+# cached spectra, features and models (large, rebuilt from the data)
+cache/

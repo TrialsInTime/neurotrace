@@ -1,0 +1,17 @@
+accuracy,macro_f1,recall_AD,recall_CN,setting,task,model,recall_FTD
+0.79,0.788,0.787,0.793,cleaned 4s,AD-CN,LogReg,
+0.821,0.82,0.806,0.839,cleaned 4s,AD-CN,RandomForest,
+0.58,0.552,0.611,0.759,cleaned 4s,AD-FTD-CN,LogReg,0.304
+0.648,0.591,0.778,0.828,cleaned 4s,AD-FTD-CN,RandomForest,0.217
+0.8,0.799,0.778,0.828,raw 4s,AD-CN,LogReg,
+0.81,0.808,0.824,0.793,raw 4s,AD-CN,RandomForest,
+0.572,0.532,0.639,0.759,raw 4s,AD-FTD-CN,LogReg,0.232
+0.686,0.636,0.815,0.851,raw 4s,AD-FTD-CN,RandomForest,0.275
+0.785,0.784,0.759,0.816,cleaned 2s,AD-CN,LogReg,
+0.8,0.798,0.806,0.793,cleaned 2s,AD-CN,RandomForest,
+0.61,0.578,0.657,0.793,cleaned 2s,AD-FTD-CN,LogReg,0.304
+0.617,0.552,0.778,0.77,cleaned 2s,AD-FTD-CN,RandomForest,0.174
+0.841,0.84,0.843,0.839,cleaned 8s,AD-CN,LogReg,
+0.815,0.815,0.796,0.839,cleaned 8s,AD-CN,RandomForest,
+0.553,0.517,0.62,0.724,cleaned 8s,AD-FTD-CN,LogReg,0.232
+0.64,0.596,0.713,0.851,cleaned 8s,AD-FTD-CN,RandomForest,0.261
