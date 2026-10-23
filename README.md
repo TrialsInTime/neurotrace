@@ -32,7 +32,6 @@ All numbers are **per subject** and come from cross-validation where a person is
 - [Other experiments](#other-experiments)
 - [How it is evaluated](#how-it-is-evaluated)
 - [Getting started](#getting-started)
-- [Demo app](#demo-app)
 - [Project structure](#project-structure)
 - [Limitations](#limitations)
 
@@ -218,19 +217,6 @@ Or put it anywhere and point the `NEUROTRACE_DATA` environment variable at it.
 
 The first run computes spectra and coherence for every subject and saves them in `cache/` (a few minutes per setting). Later runs reload them instantly.
 
-## Demo app
-
-```bash
-python app/app.py
-```
-
-Opens a small web app (Gradio). Upload an EEGLAB `.set` recording (19 channels, 10-20 names) or pick a dataset subject, optionally tick channels to treat as missing, and you get:
-
-- the probability of AD, FTD and CN
-- a chart comparing the recording's band power with each group's average
-
-The demo model is trained on *all* dataset subjects, so its predictions on those same subjects are optimistic. Uploaded recordings should be cleaned the same way as the dataset's `derivatives/` for a fair result.
-
 ## Project structure
 
 ```
@@ -243,7 +229,6 @@ neurotrace/
 │   ├── evaluate.py     subject-level cross-validation
 │   └── robustness.py   missing-channel simulation
 ├── notebooks/          experiments 00-08 (call code in src/)
-├── app/app.py          Gradio demo
 ├── results/            result tables (.csv) and figures (.png)
 ├── cache/              computed spectra and features (not committed)
 └── requirements.txt

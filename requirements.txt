@@ -8,5 +8,4 @@ mne
 mne-connectivity
 torch
 shap
-gradio
 pyyaml
