@@ -1,102 +1,101 @@
-
 # neurotrace
 
-EEG-based Alzheimer's detection with preprocessing comparison, missing-channel robustness testing, explainability and edge-deployment benchmarking.
+**Telling Alzheimer's disease (AD), frontotemporal dementia (FTD) and healthy brains (CN) apart from a few minutes of resting-state EEG.**
 
-> Work in progress: course project (VIT).
+neurotrace takes an eyes-closed EEG recording, turns it into frequency-band features, and predicts one of three groups. Along the way it asks four practical questions: does cleaning the signal help, what happens when electrodes are missing, *why* does the model decide what it decides, and can it run on small hardware?
 
-## Overview
+> Course project (VIT), work in progress. This is a research prototype, **not a clinical tool**.
 
-The system takes a resting-state EEG recording and produces:
+---
 
-- a predicted diagnostic category (cognitively normal / AD / FTD)
-- a prediction confidence score
-- a robustness profile showing how accuracy degrades as EEG channels are dropped or corrupted
-- a visual explanation of which channels, frequency bands or time windows drove the prediction
-- a latency and memory benchmark on constrained hardware
+## Key results at a glance
 
-## Dataset
-
-[OpenNeuro ds004504](https://openneuro.org/datasets/ds004504): resting-state, eyes-closed EEG from 88 participants (AD, frontotemporal dementia, healthy controls), recorded with 19 scalp electrodes and provided in BIDS format with raw and preprocessed versions.
-
-The data is **not** stored in this repository. Download it from OpenNeuro and place it in a folder called `dataset/` next to the `neurotrace/` folder, or set the `NEUROTRACE_DATA` environment variable to its location.
-
-## Pipeline
-
-1. Preprocessing comparison: raw vs cleaned recordings (ICA + artifact removal), epoch length 2 / 4 / 8 s
-2. Feature extraction: relative band power (delta, theta, alpha, beta, gamma) and theta/alpha ratio per channel
-3. Classical baseline (logistic regression / random forest)
-4. Deep classifier (small 1D CNN on each epoch's 19-channel power spectrum)
-5. Subject-level stratified cross-validation (no epoch leakage between train and test)
-6. Missing-channel robustness testing
-7. Explainability (SHAP, saliency / Grad-CAM)
-8. Edge-deployment benchmarking
-9. Demo interface
-
-## Repository structure
-
-```
-configs/     preprocessing configurations
-src/         data loading, preprocessing, features, models, robustness, explainability, benchmarking
-notebooks/   Colab notebooks that call code in src/
-results/     small result tables and figures
-app/         demo interface
-```
-
-## Notebooks
-
-| Notebook | What it does |
+| Question | Answer |
 |---|---|
-| `00_explore` | Look at raw signals and spectra |
-| `01_features` | Build the band-power feature table |
-| `02_baseline` | Logistic regression and random forest |
-| `03_preprocessing` | Raw vs cleaned, 2 / 4 / 8 s epochs |
-| `04_cnn` | 1D CNN on spectra |
-| `05_robustness` | Accuracy with missing channels |
-| `06_explainability` | SHAP (random forest) and saliency (CNN) |
-| `07_benchmark` | Model size and single-core latency |
-| `08_our_method` | Our method vs the baseline, step-by-step ablation |
+| How well can it separate AD from healthy? | **82 %** of subjects correct (random forest) |
+| How well can it separate all three groups? | **64 %** accuracy, but FTD is the weak spot |
+| Can FTD detection be improved? | Yes, **our method roughly doubles FTD recall** (22 % → 41 %) |
+| Does signal cleaning (ICA) help? | Not noticeably for band-power features |
+| What if electrodes are missing? | Random forest still gets **71 %** with 8 of 19 channels gone |
+| What does the model look at? | Theta/alpha ratio over the back of the head, the classic AD "slowing" |
+| Can it run on a small device? | Yes, a slimmed-down forest: **1.5 MB, 3 ms** per 4-second window |
 
-Spectra are cached in `cache/` the first time they are computed (a few minutes per setting).
+All numbers are **per subject** and come from cross-validation where a person is never in both the training and the test set (more in [How it is evaluated](#how-it-is-evaluated)).
 
-## Demo
+---
+
+## Contents
+
+- [The data](#the-data)
+- [How it works](#how-it-works)
+- [Our method: better FTD detection](#our-method-better-ftd-detection)
+- [Other experiments](#other-experiments)
+- [How it is evaluated](#how-it-is-evaluated)
+- [Getting started](#getting-started)
+- [Demo app](#demo-app)
+- [Project structure](#project-structure)
+- [Limitations](#limitations)
+
+---
+
+## The data
+
+[OpenNeuro ds004504](https://openneuro.org/datasets/ds004504): eyes-closed resting EEG from **88 people** (36 AD, 23 FTD, 29 CN), 19 scalp electrodes (10-20 layout), 500 Hz, in BIDS format. It comes in two versions, which this project compares:
+
+- **raw** recordings
+- **cleaned** recordings (`derivatives/`, already filtered and cleaned with ICA / artifact removal)
+
+The data is **not** in this repository; see [Getting started](#getting-started).
+
+## How it works
 
 ```
-python app/app.py
+EEG recording ──► cut into 4 s windows ──► power spectrum (1-45 Hz)
+              ──► features per window  ──► classifier ──► average over windows ──► AD / FTD / CN
 ```
 
-Upload an EEGLAB `.set` recording (19 channels, 10-20 names) or pick a dataset subject, optionally mark channels as missing, and get class probabilities plus a band-power chart. The demo model is trained on all dataset subjects, so predictions on those subjects are optimistic.
+1. **Windows.** Each recording is cut into fixed-length windows ("epochs") of 2, 4 or 8 seconds.
+2. **Spectrum.** For every window and channel, a Welch power spectrum from 1 to 45 Hz.
+3. **Features.** The share of power in each band (delta 1-4, theta 4-8, alpha 8-13, beta 13-30, gamma 30-45 Hz) plus the theta/alpha ratio, for all 19 channels: 114 numbers per window.
+4. **Models.** Logistic regression, random forest, and a small 1D CNN that reads the raw spectra directly.
+5. **One answer per person.** The model scores every window; the person's prediction is the average.
 
-## Setup (Colab)
+## Our method: better FTD detection
 
-```python
-!git clone https://github.com/TrialsInTime/neurotrace.git
-%cd neurotrace
-!pip install -q -r requirements.txt
-```
+The baseline models label most FTD patients as AD: they find only about **1 in 5** FTD subjects. Our method keeps the *same* random forest and changes only what it is given:
 
-## Results
+1. **One row per person** (median of each feature over their windows) instead of thousands of near-duplicate windows, so the model learns disease patterns rather than memorising individuals.
+2. **Brain regions instead of channels.** 19 channels are averaged into 5 regions (frontal, central, temporal, parietal, occipital), which gives fewer features for only 88 people.
+3. **Features aimed at FTD**, which mainly affects the *front* of the brain while AD affects the *back*:
+   - peak alpha frequency (where the alpha peak sits; it slows with disease)
+   - spectral entropy (how spread out the spectrum is)
+   - front-vs-back power ratio in each band
+   - coherence between regions (how strongly two regions move together)
 
-### Our method: better FTD detection
+### Where the mistakes go
 
-The baselines call most FTD subjects AD. Our method keeps the same random forest but changes the input:
+![Confusion matrices: baseline vs our method](results/confusion_baseline_vs_ours.png)
 
-1. **One row per person** (median of each feature over their epochs) instead of thousands of epochs
-2. **Regional features** (5 brain regions instead of 19 channels)
-3. **FTD-targeted features**: peak alpha frequency, spectral entropy, front-vs-back power ratios, and coherence between regions
+The baseline sends **69 %** of FTD subjects to AD. Our method cuts that to **41 %** and correctly finds **41 %** of FTD subjects (up from 22 %). The trade-off: some AD subjects (23 %) are now called FTD, because AD is no longer the "safe default" answer.
 
-AD vs FTD vs CN, 10 shuffles (`results/our_method_ablation.csv`):
+### Step-by-step (ablation)
+
+AD vs FTD vs CN, 10 shuffles (`results/our_method_ablation.csv`). Each row adds one change.
 
 | Method | Accuracy | Macro F1 | FTD recall |
 |---|---|---|---|
-| Baseline: RF on epochs, channel band power | **0.644** | 0.588 | 0.217 |
+| Baseline: random forest on windows, channel band power | **0.644** | 0.588 | 0.217 |
 | + one row per person | 0.551 | 0.530 | 0.335 |
 | + regional features | 0.550 | 0.535 | 0.378 |
-| + peak alpha, entropy, front/back ratios | 0.597 | 0.581 | 0.422 |
-| **+ coherence (our method)** | 0.624 | **0.604** | **0.409** |
+| + peak alpha, entropy, front/back ratios | 0.597 | 0.581 | **0.422** |
+| **+ coherence (our method)** | 0.624 | **0.604** | 0.409 |
 | Our method with a two-step classifier (healthy vs dementia, then AD vs FTD) | 0.599 | 0.566 | 0.322 |
 
-Per task (`results/our_method_vs_baseline.csv`):
+Macro F1 averages over the three classes equally, so it rewards getting the small FTD group right; plain accuracy mostly rewards the larger AD and CN groups.
+
+### On every task
+
+`results/our_method_vs_baseline.csv`
 
 | Task | Baseline F1 | Our F1 | Baseline FTD recall | Our FTD recall |
 |---|---|---|---|---|
@@ -105,50 +104,160 @@ Per task (`results/our_method_vs_baseline.csv`):
 | FTD vs CN | 0.764 | **0.785** | 0.652 | **0.726** |
 | AD vs CN | **0.820** | 0.783 | - | - |
 
-Our method roughly **doubles FTD recall** (0.22 to 0.41 in the 3-class task, 0.19 to 0.49 for AD vs FTD) and has the best macro F1 on every task involving FTD. The cost is AD recall (0.78 to 0.62), because AD is no longer the default answer, plus about 2 points of overall accuracy. On AD vs CN alone the baseline stays better. The most important features are the new ones: parietal-occipital coherence and front-vs-back beta and alpha ratios (`results/our_method_features.png`). The two-step classifier did not help.
+**In short:** our method is better on every task that involves FTD. On plain AD vs CN the baseline is still better, so the two are complementary. The two-step classifier did not help.
 
-### Other experiments
+### What our method relies on
 
-All accuracies are **per subject** (a subject's epoch predictions are averaged), with 5-fold cross-validation that never splits a subject between train and test, averaged over several shuffles.
+![Top 15 features of our method](results/our_method_features.png)
 
-**Models** (cleaned data, 4 s epochs; `results/model_comparison.csv`)
+The new features dominate: beta coherence between parietal and occipital regions, and the front-vs-back beta and alpha ratios.
 
-| Task | LogReg | Random forest | 1D CNN |
+## Other experiments
+
+### Model comparison
+
+Cleaned data, 4 s windows (`results/model_comparison.csv`).
+
+| Task | Logistic regression | Random forest | 1D CNN |
 |---|---|---|---|
 | AD vs CN | 0.79 | **0.82** | 0.68 |
 | AD vs FTD vs CN | 0.57 | **0.64** | 0.51 |
 
-FTD is the hard class: only 22-29 % of FTD subjects are recognised, most are called AD. With only 88 subjects the CNN overfits and does worse than the classical models.
+With only 88 people the CNN overfits and loses to the classical models.
 
-**Preprocessing** (`results/preprocessing_comparison.csv`): the differences are small (within about +/- 4 points) and inside the shuffle-to-shuffle noise. Cleaning gives no clear gain for band-power features; 8 s epochs help logistic regression slightly on AD vs CN (0.84).
+### Preprocessing: raw vs cleaned, 2 / 4 / 8 s windows
 
-**Missing channels** (AD vs CN; `results/robustness_AD-CN.png`): missing channels are filled with the average of the remaining ones. The random forest is the most robust: 0.82 with all channels, 0.76 with 2 to 6 missing, 0.71 with 8 of 19 missing. Logistic regression drops to 0.64 and the CNN to 0.58.
+![Preprocessing comparison](results/preprocessing_comparison.png)
 
-**Explainability** (`results/shap_*.png`, `results/cnn_saliency.png`): the theta/alpha ratio is the most important feature group for the random forest, and the occipital and left temporal-parietal channels matter most. This agrees with the known slowing of posterior alpha rhythm in Alzheimer's disease.
+All differences stay within about ±4 points, which is inside the shuffle-to-shuffle noise. Cleaning gives no clear gain for band-power features. Longer 8 s windows help logistic regression a little on AD vs CN (0.84). Details: `results/preprocessing_comparison.csv`.
 
-**Edge benchmark** (AD vs CN, one CPU core; `results/edge_benchmark.csv`)
+### Missing electrodes
 
-| Model | Accuracy | Size | Time per 4 s epoch (features + prediction) |
+![Accuracy with missing channels](results/robustness_AD-CN.png)
+
+Models are trained on complete recordings. At test time, *k* random channels are removed and filled in with the average of the remaining ones (AD vs CN).
+
+| Missing channels | 0 | 2 | 4 | 6 | 8 |
+|---|---|---|---|---|---|
+| Logistic regression | 0.77 | 0.70 | 0.73 | 0.67 | 0.64 |
+| **Random forest** | **0.82** | **0.76** | **0.74** | **0.76** | **0.71** |
+| 1D CNN | 0.69 | 0.65 | 0.62 | 0.58 | 0.58 |
+
+The random forest degrades the most gracefully.
+
+### Explainability
+
+![SHAP importance by band and channel](results/shap_bands_channels.png)
+
+For the random forest (SHAP values), the **theta/alpha ratio** is the most important feature group, and the **occipital and left temporal-parietal** channels matter most. This matches the known slowing of the posterior alpha rhythm in Alzheimer's disease. A per-feature view is in `results/shap_summary.png`.
+
+For the CNN (gradient × input saliency, `results/cnn_saliency.png`) the strongest inputs are O2 (back of the head) and Fp1 (above the left eye). Fp1 is the channel most affected by eye movements, so part of the CNN's signal may be artifact rather than brain activity.
+
+### Running on small hardware
+
+AD vs CN, single CPU core (`results/edge_benchmark.csv`). Time includes computing features from a raw 4 s window.
+
+| Model | Accuracy | Size | Time per 4 s window |
 |---|---|---|---|
-| LogReg | 0.79 | 4 KB | 1.1 ms |
+| Logistic regression | 0.79 | 4 KB | 1.1 ms |
 | Random forest (300 trees) | 0.82 | 57 MB | 14.8 ms |
-| Random forest (50 trees, depth 8) | 0.80 | 1.5 MB | 3.3 ms |
+| **Random forest (50 trees, depth 8)** | **0.80** | **1.5 MB** | **3.3 ms** |
 | 1D CNN | 0.68 | 54 KB | 1.0 ms |
 
-All models are far faster than real time. The small random forest keeps almost all of the accuracy at 1/38 of the size, making it the best choice for constrained hardware.
+Every model runs far faster than real time. The small forest keeps almost all the accuracy at 1/38 of the size, which makes it the best fit for constrained devices.
+
+## How it is evaluated
+
+- **Subject-level splits.** 5-fold `StratifiedGroupKFold`: all windows of a person stay on the same side of the split, so the model is never tested on someone it has already seen. Without this, accuracy looks much higher than it really is.
+- **Per-subject scores.** Window predictions are averaged into one prediction per person, and accuracy is the fraction of *people* classified correctly.
+- **Repeated shuffles.** Each result is averaged over several random fold assignments (10 for most tables, 3 for the slower CNN and preprocessing runs) to smooth out luck in the split.
+- **Balanced classes.** Models use class weighting so the smaller FTD group is not ignored.
+
+## Getting started
+
+### 1. Get the code
+
+```bash
+git clone https://github.com/TrialsInTime/neurotrace.git
+cd neurotrace
+python -m venv .venv
+.venv\Scripts\activate          # Windows
+# source .venv/bin/activate     # macOS / Linux
+pip install -r requirements.txt
+```
+
+### 2. Get the data
+
+Download [ds004504](https://openneuro.org/datasets/ds004504) and put it in a folder called `dataset/` **next to** the `neurotrace/` folder:
+
+```
+ML PROJECT/
+├── dataset/
+│   ├── participants.tsv
+│   ├── sub-001/eeg/...        raw recordings
+│   └── derivatives/
+│       └── sub-001/eeg/...    cleaned recordings
+└── neurotrace/
+```
+
+Or put it anywhere and point the `NEUROTRACE_DATA` environment variable at it.
+
+### 3. Run the notebooks in order
+
+| Notebook | What it does | Writes |
+|---|---|---|
+| `00_explore` | Look at raw signals and spectra of one AD and one CN subject | - |
+| `01_features` | Build the band-power feature table | `cache/features_deriv_4s.pkl` |
+| `02_baseline` | Logistic regression and random forest | `results/baseline_results.csv` |
+| `03_preprocessing` | Raw vs cleaned, 2 / 4 / 8 s windows | `results/preprocessing_comparison.*` |
+| `04_cnn` | 1D CNN on spectra | `results/model_comparison.csv` |
+| `05_robustness` | Accuracy with missing channels | `results/robustness_AD-CN.*` |
+| `06_explainability` | SHAP (random forest) and saliency (CNN) | `results/shap_*.png`, `results/cnn_saliency.png` |
+| `07_benchmark` | Model size and single-core speed | `results/edge_benchmark.csv` |
+| `08_our_method` | Our method vs the baseline, step by step | `results/our_method_*`, `results/confusion_baseline_vs_ours.png` |
+
+The first run computes spectra and coherence for every subject and saves them in `cache/` (a few minutes per setting). Later runs reload them instantly.
+
+## Demo app
+
+```bash
+python app/app.py
+```
+
+Opens a small web app (Gradio). Upload an EEGLAB `.set` recording (19 channels, 10-20 names) or pick a dataset subject, optionally tick channels to treat as missing, and you get:
+
+- the probability of AD, FTD and CN
+- a chart comparing the recording's band power with each group's average
+
+The demo model is trained on *all* dataset subjects, so its predictions on those same subjects are optimistic. Uploaded recordings should be cleaned the same way as the dataset's `derivatives/` for a fair result.
+
+## Project structure
+
+```
+neurotrace/
+├── src/
+│   ├── config.py       paths (data, cache, results)
+│   ├── data.py         load subject list and recordings
+│   ├── features.py     spectra, band power, regional, FTD and coherence features
+│   ├── models.py       logistic regression, random forest, two-step model, 1D CNN
+│   ├── evaluate.py     subject-level cross-validation
+│   └── robustness.py   missing-channel simulation
+├── notebooks/          experiments 00-08 (call code in src/)
+├── app/app.py          Gradio demo
+├── results/            result tables (.csv) and figures (.png)
+├── cache/              computed spectra and features (not committed)
+└── requirements.txt
+```
 
 ## Limitations
 
-- Small, single-site cohort (88 subjects) and only 19 channels
-- Connectivity and microstate features were not explored
-- FTD remains the hardest class: even with our method, about 4 in 10 FTD subjects are called AD
-- Cross-sectional data, so no progression modeling
-- Not a clinical tool
+- **Small dataset:** 88 people from a single site, 19 channels. Every result here has a few points of noise.
+- **FTD is still hard:** even with our method, about 4 in 10 FTD subjects are called AD.
+- **Method chosen on the same data it is tested on:** the features for our method were designed while looking at these cross-validation results, with no separate held-out test set, so the gains may be somewhat optimistic.
+- **Only spectral and coherence features:** microstates, other connectivity measures and time-domain features were not explored.
+- **Snapshot data:** one recording per person, so no modelling of disease progression.
+- **Not a clinical tool.**
 
 ## License
 
-MIT
-
-
-
-
+[MIT](LICENSE)
